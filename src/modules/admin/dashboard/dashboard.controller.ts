@@ -22,12 +22,13 @@ import { DangerStatusDto } from './dto/danger-status.dto';
 import { JobStatusDto } from './dto/job-status.dto';
 import { UpdateCommissionDto } from './dto/update-commission.dto';
 import { Public } from 'src/common/decorator/public.decorator';
+import { HomeownerActionsDto } from './dto/homeowner-actions.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+  constructor(private readonly dashboardService: DashboardService) { }
 
   // dashborad Overview
   @Get('overview')
@@ -77,6 +78,12 @@ export class DashboardController {
     @Query() paginationDto: PaginationDto
   ) {
     return this.dashboardService.getAllHomeowners(paginationDto);
+  }
+
+  // Homer owner actions
+  @Patch('/homeowners/actions')
+  async homeownersActions(@Query() query: HomeownerActionsDto) {
+    return this.dashboardService.homeownersActions(query)
   }
 
   /*--------------------------------------------

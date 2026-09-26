@@ -43,6 +43,12 @@ enum UserType {
   CLEANER
 }
 
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
 enum ServiceType {
   GENERAL_CLEANING
   DEEP_CLEANING
@@ -54,7 +60,7 @@ model User {
   created_at DateTime  @default(now())
   updated_at DateTime  @default(now())
   deleted_at DateTime?
-  status     Int?      @default(1) @db.SmallInt
+  status     UserStatus @default(ACTIVE)
 
   first_name String?   @db.VarChar(255)
   last_name  String?   @db.VarChar(255)

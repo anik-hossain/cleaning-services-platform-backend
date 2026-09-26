@@ -29,7 +29,7 @@ export class AuthService {
     private userRepository: UserRepository,
     private ucodeRepository: UcodeRepository,
     @InjectRedis() private readonly redis: Redis,
-  ) {}
+  ) { }
 
   private resolveAvatarUrl(avatar: string | null | undefined) {
     if (!avatar) {
@@ -84,7 +84,7 @@ export class AuthService {
   //active deactive
   async activeDeactive(userId: string) {
 
-    try{
+    try {
       const user = await this.prisma.user.findFirst({
         where: {
           id: userId,
@@ -132,7 +132,7 @@ export class AuthService {
         message: error.message,
       };
     }
-    
+
 
   }
 
@@ -955,22 +955,22 @@ export class AuthService {
           verification_documents: {
             id_card_front_url: verification.id_card_front
               ? TanvirStorage.url(
-                  appConfig().storageUrl.maidverification +
-                    '/' +
-                    verification.id_card_front,
-                )
+                appConfig().storageUrl.maidverification +
+                '/' +
+                verification.id_card_front,
+              )
               : null,
             id_card_back_url: verification.id_card_back
               ? TanvirStorage.url(
-                  appConfig().storageUrl.maidverification +
-                    '/' +
-                    verification.id_card_back,
-                )
+                appConfig().storageUrl.maidverification +
+                '/' +
+                verification.id_card_back,
+              )
               : null,
             resume_url: verification.resume
               ? TanvirStorage.url(
-                  appConfig().storageUrl.maidResume + '/' + verification.resume,
-                )
+                appConfig().storageUrl.maidResume + '/' + verification.resume,
+              )
               : null,
           },
         },
@@ -1325,7 +1325,7 @@ export class AuthService {
             avatar: picture || null,
             google_id: uid,
             email_verified_at: new Date(),
-            status: 1,
+            status: 'ACTIVE',
             type: 'MAID',
           },
         });
@@ -1422,7 +1422,7 @@ export class AuthService {
             avatar: picture || null,
             apple_id: uid,
             email_verified_at: new Date(),
-            status: 1,
+            status: 'ACTIVE',
             type: 'MAID',
           },
         });

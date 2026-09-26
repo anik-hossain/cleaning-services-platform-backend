@@ -4,13 +4,13 @@ import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async findAll() {
     try {
       const users = await this.prisma.user.findMany({
         where: {
-          status: 1,
+          status: 'ACTIVE',
           type: {
             not: 'HOMEOWNER',
           },

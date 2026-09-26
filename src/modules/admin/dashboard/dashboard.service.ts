@@ -9,10 +9,11 @@ import { DangerStatusDto } from './dto/danger-status.dto';
 import { JobStatusDto } from './dto/job-status.dto';
 import { UpdateCommissionDto } from './dto/update-commission.dto';
 import { sendAdminNotification } from 'src/common/utils/notification.util';
+import { HomeownerActionsDto } from './dto/homeowner-actions.dto';
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   // dashboard overview (only revenew)
   async getOverview() {
@@ -153,31 +154,31 @@ export class DashboardService {
           created_at: notification.created_at,
           sender: notification.sender
             ? {
-                id: notification.sender.id,
-                name: notification.sender.name,
-                avatar: notification.sender.avatar
-                  ? TanvirStorage.url(
-                      appConfig().storageUrl.avatar +
-                        '/' +
-                        notification.sender.avatar,
-                    )
-                  : null,
-                type: notification.sender.type,
-              }
+              id: notification.sender.id,
+              name: notification.sender.name,
+              avatar: notification.sender.avatar
+                ? TanvirStorage.url(
+                  appConfig().storageUrl.avatar +
+                  '/' +
+                  notification.sender.avatar,
+                )
+                : null,
+              type: notification.sender.type,
+            }
             : null,
           receiver: notification.receiver
             ? {
-                id: notification.receiver.id,
-                name: notification.receiver.name,
-                avatar: notification.receiver.avatar
-                  ? TanvirStorage.url(
-                      appConfig().storageUrl.avatar +
-                        '/' +
-                        notification.receiver.avatar,
-                    )
-                  : null,
-                type: notification.receiver.type,
-              }
+              id: notification.receiver.id,
+              name: notification.receiver.name,
+              avatar: notification.receiver.avatar
+                ? TanvirStorage.url(
+                  appConfig().storageUrl.avatar +
+                  '/' +
+                  notification.receiver.avatar,
+                )
+                : null,
+              type: notification.receiver.type,
+            }
             : null,
         };
       });
@@ -353,7 +354,7 @@ export class DashboardService {
           location: homeowner.location,
           bookings: totalBookings,
           total_spent: totalSpent,
-          status: homeowner.status === 1 ? 'active' : 'inactive',
+          status: homeowner.status,
           joined_at: homeowner.created_at,
         };
       });
@@ -362,6 +363,32 @@ export class DashboardService {
         success: true,
         message: `Homeowners retrieved successfully`,
         data: paginateResponse(data, total, page, perPage),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  // Homeowner actions
+  async homeownersActions(query: HomeownerActionsDto) {
+    try {
+      await this.prisma.user.update({
+        where: {
+          id: query.userId,
+          type: 'HOMEOWNER'
+        },
+        data: {
+          status: query.status
+        }
+      });
+
+      return {
+        success: true,
+        message: `User Status update successfully`,
+        data: null,
       };
     } catch (error: any) {
       return {
@@ -466,17 +493,9 @@ export class DashboardService {
         const avgRating =
           ratings.length > 0
             ? Math.round(
-                (ratings.reduce((sum, r) => sum + r, 0) / ratings.length) * 10,
-              ) / 10
+              (ratings.reduce((sum, r) => sum + r, 0) / ratings.length) * 10,
+            ) / 10
             : 0;
-
-        // status: availability
-        let statusLabel: 'active' | 'inactive';
-        if (cleaner.status !== 1) {
-          statusLabel = 'inactive';
-        } else {
-          statusLabel = 'active';
-        }
 
         return {
           id: cleaner.id,
@@ -493,7 +512,7 @@ export class DashboardService {
             completion_rate: completionRate,
           },
           earnings: totalEarnings,
-          status: statusLabel,
+          status: cleaner.status,
         };
       });
 
@@ -699,7 +718,7 @@ export class DashboardService {
 
   // approve or reject job approval by id
   async updateJobApprovalById(
-    id: string, 
+    id: string,
     updateDto: JobStatusDto
   ) {
     try {
@@ -818,11 +837,11 @@ export class DashboardService {
       });
 
       await sendAdminNotification({
-          sender_id: 'system',
-          text: `Booking ${existingBooking.id} has been rejected and the amount has been refunded to your balance.`,
-          type: 'reject_job_submission',
-          entity_id: existingBooking.id,
-        });
+        sender_id: 'system',
+        text: `Booking ${existingBooking.id} has been rejected and the amount has been refunded to your balance.`,
+        type: 'reject_job_submission',
+        entity_id: existingBooking.id,
+      });
 
       return {
         success: true,
@@ -981,24 +1000,24 @@ export class DashboardService {
         rejected_reason: verification.rejected_reason || null,
         id_card_front_url: verification.id_card_front
           ? TanvirStorage.url(
-              appConfig().storageUrl.maidverification +
-                '/' +
-                verification.id_card_front,
-            )
+            appConfig().storageUrl.maidverification +
+            '/' +
+            verification.id_card_front,
+          )
           : null,
         id_card_back_url: verification.id_card_back
           ? TanvirStorage.url(
-              appConfig().storageUrl.maidverification +
-                '/' +
-                verification.id_card_back,
-            )
+            appConfig().storageUrl.maidverification +
+            '/' +
+            verification.id_card_back,
+          )
           : null,
         resume_url: verification.resume
           ? TanvirStorage.url(
-              appConfig().storageUrl.maidResume +
-                '/' +
-                verification.resume,
-            )
+            appConfig().storageUrl.maidResume +
+            '/' +
+            verification.resume,
+          )
           : null,
       };
 
@@ -1017,7 +1036,7 @@ export class DashboardService {
 
   // approve or reject cleaner request by id
   async updateCleanerRequestById(
-    id: string, 
+    id: string,
     updateDto: CleanerStatusDto
   ) {
     try {
@@ -1215,7 +1234,7 @@ export class DashboardService {
 
   // approve or reject danger request by id
   async updateDangerRequestById(
-    id: string, 
+    id: string,
     updateDto: DangerStatusDto
   ) {
     try {
