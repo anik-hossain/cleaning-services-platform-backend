@@ -23,6 +23,7 @@ import { JobStatusDto } from './dto/job-status.dto';
 import { UpdateCommissionDto } from './dto/update-commission.dto';
 import { Public } from 'src/common/decorator/public.decorator';
 import { HomeownerActionsDto } from './dto/homeowner-actions.dto';
+import { CleanerActionsDto } from './dto/cleaner-actions.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -96,6 +97,13 @@ export class DashboardController {
     @Query() paginationDto: PaginationDto
   ) {
     return this.dashboardService.getAllCleaners(paginationDto);
+  }
+
+  // Cleaner actions
+  // Homer owner actions
+  @Patch('/cleaners/actions')
+  async cleanerActions(@Query() query: CleanerActionsDto) {
+    return this.dashboardService.cleanerActions(query)
   }
 
   /*--------------------------------------------

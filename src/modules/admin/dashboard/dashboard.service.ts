@@ -10,6 +10,7 @@ import { JobStatusDto } from './dto/job-status.dto';
 import { UpdateCommissionDto } from './dto/update-commission.dto';
 import { sendAdminNotification } from 'src/common/utils/notification.util';
 import { HomeownerActionsDto } from './dto/homeowner-actions.dto';
+import { CleanerActionsDto } from './dto/cleaner-actions.dto';
 
 @Injectable()
 export class DashboardService {
@@ -520,6 +521,33 @@ export class DashboardService {
         success: true,
         message: `Cleaners retrieved successfully`,
         data: paginateResponse(data, total, page, perPage),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+
+  // Homeowner actions
+  async cleanerActions(query: CleanerActionsDto) {
+    try {
+      await this.prisma.user.update({
+        where: {
+          id: query.userId,
+          type: 'HOMEOWNER'
+        },
+        data: {
+          status: query.status
+        }
+      });
+
+      return {
+        success: true,
+        message: `User Status update successfully`,
+        data: null,
       };
     } catch (error: any) {
       return {
