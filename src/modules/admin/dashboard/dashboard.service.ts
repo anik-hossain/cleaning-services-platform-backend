@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BookingStatus, UserType } from '@prisma/client';
 import { PaginationDto, paginateResponse } from 'src/common/pagination';
@@ -534,10 +534,19 @@ export class DashboardService {
   // Homeowner actions
   async cleanerActions(query: CleanerActionsDto) {
     try {
+      const cleaner = await this.prisma.user.findUnique({
+        where: {
+          id: query.userId,
+        },
+      });
+
+      if (!cleaner) {
+        throw new NotFoundException('Cleaner not found');
+      }
+
       await this.prisma.user.update({
         where: {
           id: query.userId,
-          type: 'HOMEOWNER'
         },
         data: {
           status: query.status
@@ -887,6 +896,32 @@ export class DashboardService {
      Cleaner Requests with approve part 
   --------------------------------------------*/
 
+  private isCleanerApplicationComplete(
+    cleaner: {
+      name: string | null;
+      email: string | null;
+      phone_number: string | null;
+      location: string | null;
+      address: string | null;
+    },
+    verification?: {
+      id_card_front: string | null;
+      id_card_back: string | null;
+      resume: string | null;
+    } | null,
+  ) {
+    return [
+      cleaner.name,
+      cleaner.email,
+      cleaner.phone_number,
+      cleaner.location,
+      cleaner.address,
+      verification?.id_card_front,
+      verification?.id_card_back,
+      verification?.resume,
+    ].every((value) => typeof value === 'string' && value.trim().length > 0);
+  }
+
   // get all cleaner requests with details
   async getAllCleanerRequests(
     paginationDto: PaginationDto
@@ -924,6 +959,7 @@ export class DashboardService {
             phone_number: true,
             avatar: true,
             location: true,
+            address: true,
             cleanerVerification: {
               orderBy: { created_at: 'desc' },
               take: 1,
@@ -941,17 +977,26 @@ export class DashboardService {
         this.prisma.user.count({ where: whereCondition }),
       ]);
 
-      const data = requests.map((item) => ({
-        id: item.id,
-        name: item.name,
-        email: item.email,
-        phone_number: item.phone_number,
-        avatar: item.avatar,
-        location: item.location || 'N/A',
-        applied_date: item.cleanerVerification[0]?.created_at || null,
-        status: item.cleanerVerification[0]?.status?.toLowerCase() || 'pending',
-        rejected_reason: item.cleanerVerification[0]?.rejected_reason || null,
-      }));
+      const data = requests.map((item) => {
+        const verification = item.cleanerVerification[0] || null;
+        const isComplete = this.isCleanerApplicationComplete(item, verification);
+
+        return {
+          id: item.id,
+          name: item.name,
+          email: item.email,
+          phone_number: item.phone_number,
+          avatar: item.avatar,
+          location: item.location || 'N/A',
+          address: item.address,
+          applied_date: verification?.created_at || null,
+          status:
+            verification?.status === 'PENDING' && !isComplete
+              ? 'incomplete'
+              : verification?.status?.toLowerCase() || 'incomplete',
+          rejected_reason: verification?.rejected_reason || null,
+        };
+      });
 
       return {
         success: true,
@@ -1009,38 +1054,37 @@ export class DashboardService {
         };
       }
 
-      const verification = cleaner.cleanerVerification[0];
-      if (!verification) {
-        return {
-          success: false,
-          message: 'No verification submission found for this cleaner',
-        };
-      }
+      const verification = cleaner.cleanerVerification[0] || null;
+      const isComplete = this.isCleanerApplicationComplete(cleaner, verification);
 
       const data = {
         id: cleaner.id,
-        verification_id: verification.id,
+        verification_id: verification?.id || null,
         name: cleaner.name,
         email: cleaner.email,
         phone_number: cleaner.phone_number,
         location: cleaner.location || 'N/A',
-        status: verification.status?.toLowerCase() || 'pending',
-        rejected_reason: verification.rejected_reason || null,
-        id_card_front_url: verification.id_card_front
+        address: cleaner.address,
+        status:
+          verification?.status === 'PENDING' && !isComplete
+            ? 'draft'
+            : verification?.status?.toLowerCase() || 'draft',
+        rejected_reason: verification?.rejected_reason || null,
+        id_card_front_url: verification?.id_card_front
           ? TanvirStorage.url(
             appConfig().storageUrl.maidverification +
             '/' +
             verification.id_card_front,
           )
           : null,
-        id_card_back_url: verification.id_card_back
+        id_card_back_url: verification?.id_card_back
           ? TanvirStorage.url(
             appConfig().storageUrl.maidverification +
             '/' +
             verification.id_card_back,
           )
           : null,
-        resume_url: verification.resume
+        resume_url: verification?.resume
           ? TanvirStorage.url(
             appConfig().storageUrl.maidResume +
             '/' +
