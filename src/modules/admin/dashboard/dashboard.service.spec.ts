@@ -10,6 +10,12 @@ describe('DashboardService', () => {
       findFirst: jest.Mock;
       count: jest.Mock;
     };
+    booking: {
+      findFirst: jest.Mock;
+      findMany: jest.Mock;
+      count: jest.Mock;
+    };
+    $transaction: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -19,6 +25,12 @@ describe('DashboardService', () => {
         findFirst: jest.fn(),
         count: jest.fn(),
       },
+      booking: {
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+        count: jest.fn(),
+      },
+      $transaction: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -106,6 +118,94 @@ describe('DashboardService', () => {
         id_card_front_url: null,
         id_card_back_url: null,
         resume_url: null,
+      },
+    });
+  });
+
+  it('returns booking details with payment transactions and status history', async () => {
+    prisma.booking.findFirst.mockResolvedValue({
+      id: 'booking-1',
+      total_price: 125,
+      revenue: null,
+      payment_status: 'COMPLETED',
+      residential_cleaning_package: null,
+      payment_transaction: [
+        { id: 'transaction-1', amount: 125, paid_amount: 125 },
+      ],
+      payment_status_history: [
+        { id: 'history-1', previous_status: 'PENDING', status: 'COMPLETED' },
+      ],
+    });
+
+    const result = await service.getBookingDetails('booking-1');
+
+    expect(result.data).toMatchObject({
+      id: 'booking-1',
+      payment: {
+        status: 'COMPLETED',
+        transactions: [{ id: 'transaction-1', amount: 125, paid_amount: 125 }],
+        status_history: [
+          { id: 'history-1', previous_status: 'PENDING', status: 'COMPLETED' },
+        ],
+      },
+    });
+  });
+
+  it('returns the raw booking id alongside its display id', async () => {
+    prisma.booking.findMany.mockResolvedValue([
+      {
+        id: 'booking-1',
+        created_at: new Date('2026-09-30T00:00:00Z'),
+        booking_date: new Date('2026-10-01T00:00:00Z'),
+        slot: 'A',
+        homeowner_location: 'Home address',
+        status: 'CONFIRMED',
+        total_price: 125,
+        user: { id: 'homeowner-1', name: 'Homeowner', location: null },
+        maid: { id: 'cleaner-1', name: 'Cleaner' },
+        residential_cleaning_package: { title: 'Standard', duration: '2 hours' },
+      },
+    ]);
+    prisma.booking.count.mockResolvedValue(1);
+
+    const result = await service.getAllBookings({} as any);
+
+    expect(result.data.data[0]).toMatchObject({
+      id: 'BK - booking-1 ',
+      booking_id: 'booking-1',
+    });
+  });
+
+  it('records the previous payment status and admin when status changes', async () => {
+    const tx = {
+      booking: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'booking-1',
+          payment_status: 'PENDING',
+        }),
+        update: jest.fn().mockResolvedValue({
+          id: 'booking-1',
+          payment_status: 'COMPLETED',
+        }),
+      },
+      bookingPaymentStatusHistory: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+    };
+    prisma.$transaction.mockImplementation((callback) => callback(tx));
+
+    await service.updateBookingPaymentStatus(
+      'booking-1',
+      { status: 'COMPLETED' } as any,
+      'admin-1',
+    );
+
+    expect(tx.bookingPaymentStatusHistory.create).toHaveBeenCalledWith({
+      data: {
+        booking_id: 'booking-1',
+        previous_status: 'PENDING',
+        status: 'COMPLETED',
+        changed_by: 'admin-1',
       },
     });
   });

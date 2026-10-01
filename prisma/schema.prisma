@@ -56,9 +56,9 @@ enum ServiceType {
 }
 
 model User {
-  id         String    @id @default(cuid())
-  created_at DateTime  @default(now())
-  updated_at DateTime  @default(now())
+  id         String     @id @default(cuid())
+  created_at DateTime   @default(now())
+  updated_at DateTime   @default(now())
   deleted_at DateTime?
   status     UserStatus @default(ACTIVE)
 
@@ -80,7 +80,7 @@ model User {
   fcm_token   String?
   device_type String?
 
-  latitude  Float? 
+  latitude  Float?
   longitude Float?
 
   // billing info  
@@ -119,7 +119,7 @@ model User {
 
   // Review & Rating
   homeownerReviews Review[] @relation("HomeownerReviews")
-  cleanerReviews      Review[] @relation("CleanerReviews")
+  cleanerReviews   Review[] @relation("CleanerReviews")
 
   // Booking
   maidBookings Booking[] @relation("MaidBookings")
@@ -135,7 +135,6 @@ model User {
 
   // cleaner verification
   cleanerVerification CleanerVerification[] @relation("cleanerVerification")
-
 
   // others 
   user_payment_methods UserPaymentMethod[]
@@ -177,7 +176,7 @@ model CleanerVerification {
 
   rejected_reason String?
 
-  status        VerificationStatus @default(PENDING)
+  status VerificationStatus @default(PENDING)
 
   verified_at DateTime?
 
@@ -275,30 +274,28 @@ model ResidentialCleaningPackage {
   deleted_at DateTime?
 
   title       String?
-  serviceType serviceType @default(RESIDENTIAL_CLEANING)
+  serviceType serviceType  @default(RESIDENTIAL_CLEANING)
   packageType PackageType?
   image       String?
   description String?
   duration    String?
-  price       Decimal?    @db.Decimal(10, 2)
+  price       Decimal?     @db.Decimal(10, 2)
 
   booking Booking[] @relation("ResidentialCleaningPackageBookings")
 
   @@map("residential_cleaning_packages")
 }
 
-
 model Commission {
-  id         String    @id @default(cuid())
-  created_at DateTime  @default(now())
-  updated_at DateTime  @default(now())
+  id         String   @id @default(cuid())
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
 
   percentage Decimal? @db.Decimal(5, 2)
-  fixed_fee Decimal? @db.Decimal(10, 2)
+  fixed_fee  Decimal? @db.Decimal(10, 2)
 
   @@map("commissions")
 }
-
 
 // payment status for booking
 enum PaymentStatus {
@@ -326,22 +323,23 @@ model Booking {
 
   danger_notification Danger[] @relation("DangerNotificationToBooking")
 
-  payment_transaction PaymentTransaction? @relation("paymentTransactionBooking")
+  payment_transaction    PaymentTransaction[]          @relation("paymentTransactionBooking")
+  payment_status_history BookingPaymentStatusHistory[]
 
   booking_date DateTime @db.Date
   slot         Slot
 
   //start time
-  start_time DateTime?  
+  start_time DateTime?
   // end time
-  end_time DateTime?  
+  end_time   DateTime?
 
   // location _
   maid_location      String
   homeowner_location String
 
-  maid_latitude      Float?
-  maid_longitude     Float?
+  maid_latitude  Float?
+  maid_longitude Float?
 
   homeowner_latitude  Float?
   homeowner_longitude Float?
@@ -603,7 +601,7 @@ model PaymentTransaction {
   user_id String?
   user    User?   @relation(fields: [user_id], references: [id])
 
-  booking_id String?  @unique
+  booking_id String?
   booking    Booking? @relation("paymentTransactionBooking", fields: [booking_id], references: [id], onDelete: Cascade)
 
   type             String?  @default("order")
@@ -617,7 +615,21 @@ model PaymentTransaction {
   paid_amount      Decimal?
   paid_currency    String?
 
+  @@index([booking_id, created_at])
   @@map("payment_transactions")
+}
+
+model BookingPaymentStatusHistory {
+  id              String         @id @default(cuid())
+  created_at      DateTime       @default(now())
+  booking_id      String
+  booking         Booking        @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  previous_status PaymentStatus?
+  status          PaymentStatus
+  changed_by      String?
+
+  @@index([booking_id, created_at])
+  @@map("booking_payment_status_history")
 }
 
 /**

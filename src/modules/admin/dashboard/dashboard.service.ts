@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { BookingStatus, UserType } from '@prisma/client';
+import { BookingStatus, PaymentStatus, UserStatus, UserType } from '@prisma/client';
 import { PaginationDto, paginateResponse } from 'src/common/pagination';
 import appConfig from 'src/config/app.config';
 import { TanvirStorage } from 'src/common/lib/Disk/TanvirStorage';
@@ -11,6 +11,9 @@ import { UpdateCommissionDto } from './dto/update-commission.dto';
 import { sendAdminNotification } from 'src/common/utils/notification.util';
 import { HomeownerActionsDto } from './dto/homeowner-actions.dto';
 import { CleanerActionsDto } from './dto/cleaner-actions.dto';
+import { AssignBookingCleanerDto } from './dto/assign-booking-cleaner.dto';
+import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
+import { UpdateBookingPaymentStatusDto } from './dto/update-booking-payment-status.dto';
 
 @Injectable()
 export class DashboardService {
@@ -654,6 +657,7 @@ export class DashboardService {
         const serviceInfo = booking.residential_cleaning_package;
         return {
           id: `BK - ${booking.id} `,
+          booking_id: booking.id,
           homeowner_name: booking.user?.name || 'Unknown',
           cleaner_name: booking.maid?.name || 'Unknown',
           booking_date: booking.booking_date,
@@ -679,6 +683,197 @@ export class DashboardService {
         message: error.message,
       };
     }
+  }
+
+  async getBookingCleaners() {
+    const cleaners = await this.prisma.user.findMany({
+      where: {
+        type: UserType.MAID,
+        status: UserStatus.ACTIVE,
+        active: true,
+        deleted_at: null,
+      },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, avatar: true },
+    });
+
+    return { success: true, data: cleaners };
+  }
+
+  async getBookingDetails(id: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id, deleted_at: null },
+      select: {
+        id: true,
+        created_at: true,
+        updated_at: true,
+        booking_date: true,
+        slot: true,
+        start_time: true,
+        end_time: true,
+        status: true,
+        payment_status: true,
+        total_price: true,
+        revenue: true,
+        cancle_reason: true,
+        homeowner_location: true,
+        maid_location: true,
+        homeowner_latitude: true,
+        homeowner_longitude: true,
+        maid_latitude: true,
+        maid_longitude: true,
+        before_photos: true,
+        after_photos: true,
+        maid_note: true,
+        user: {
+          select: { id: true, name: true, email: true, phone_number: true, location: true },
+        },
+        maid: {
+          select: { id: true, name: true, email: true, phone_number: true, avatar: true },
+        },
+        residential_cleaning_package: {
+          select: { id: true, title: true, duration: true, price: true, serviceType: true },
+        },
+        payment_transaction: { orderBy: { created_at: 'desc' } },
+        payment_status_history: { orderBy: { created_at: 'desc' } },
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    return {
+      success: true,
+      message: 'Booking details retrieved successfully',
+      data: {
+        ...booking,
+        total_price: Number(booking.total_price ?? 0),
+        revenue: booking.revenue === null ? null : Number(booking.revenue),
+        residential_cleaning_package: booking.residential_cleaning_package
+          ? {
+              ...booking.residential_cleaning_package,
+              price: booking.residential_cleaning_package.price === null
+                ? null
+                : Number(booking.residential_cleaning_package.price),
+            }
+          : null,
+        payment: {
+          status: booking.payment_status,
+          transactions: booking.payment_transaction.map((transaction) => ({
+            ...transaction,
+            amount: transaction.amount === null ? null : Number(transaction.amount),
+            paid_amount: transaction.paid_amount === null ? null : Number(transaction.paid_amount),
+          })),
+          status_history: booking.payment_status_history,
+        },
+      },
+    };
+  }
+
+  async assignBookingCleaner(id: string, dto: AssignBookingCleanerDto) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id, deleted_at: null },
+      select: { id: true, status: true },
+    });
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+    if (
+      booking.status === BookingStatus.COMPLETED ||
+      booking.status === BookingStatus.REJECTED ||
+      booking.status === BookingStatus.CANCELLED
+    ) {
+      throw new ConflictException('Cleaner cannot be changed for a closed booking');
+    }
+
+    const cleaner = await this.prisma.user.findFirst({
+      where: {
+        id: dto.cleaner_id,
+        type: UserType.MAID,
+        status: UserStatus.ACTIVE,
+        active: true,
+        deleted_at: null,
+      },
+      select: { id: true },
+    });
+    if (!cleaner) {
+      throw new NotFoundException('Active cleaner not found');
+    }
+
+    try {
+      const updated = await this.prisma.booking.update({
+        where: { id },
+        data: { maid_id: cleaner.id },
+        select: { id: true, maid_id: true, updated_at: true },
+      });
+      return { success: true, message: 'Cleaner assigned successfully', data: updated };
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Cleaner already has a booking in this time slot');
+      }
+      throw error;
+    }
+  }
+
+  async updateBookingStatus(id: string, dto: UpdateBookingStatusDto) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id, deleted_at: null },
+      select: { id: true },
+    });
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const updated = await this.prisma.booking.update({
+      where: { id },
+      data: { status: dto.status },
+      select: { id: true, status: true, updated_at: true },
+    });
+    return { success: true, message: 'Booking status updated successfully', data: updated };
+  }
+
+  async updateBookingPaymentStatus(
+    id: string,
+    dto: UpdateBookingPaymentStatusDto,
+    changedBy?: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.findFirst({
+        where: { id, deleted_at: null },
+        select: { id: true, payment_status: true },
+      });
+      if (!booking) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      const updated = await tx.booking.update({
+        where: { id },
+        data: { payment_status: dto.status },
+        select: { id: true, payment_status: true, updated_at: true },
+      });
+      if (booking.payment_status !== dto.status) {
+        await tx.bookingPaymentStatusHistory.create({
+          data: {
+            booking_id: id,
+            previous_status: booking.payment_status,
+            status: dto.status,
+            changed_by: changedBy,
+          },
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Booking payment status updated successfully',
+        data: updated,
+      };
+    });
   }
 
   /*--------------------------------------------
