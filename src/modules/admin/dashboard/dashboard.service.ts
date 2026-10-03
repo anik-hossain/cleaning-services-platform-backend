@@ -354,7 +354,7 @@ export class DashboardService {
           name: homeowner.name,
           email: homeowner.email,
           phone_number: homeowner.phone_number,
-          avatar: homeowner.avatar,
+          avatar: homeowner.avatar ? '/public/storage/avatar/' + homeowner.avatar : null,
           location: homeowner.location,
           bookings: totalBookings,
           total_spent: totalSpent,
@@ -506,7 +506,7 @@ export class DashboardService {
           name: cleaner.name,
           email: cleaner.email,
           phone_number: cleaner.phone_number,
-          avatar: cleaner.avatar,
+          avatar: cleaner.avatar ? '/public/storage/avatar/' + cleaner.avatar : null,
           joined_at: cleaner.created_at,
           rating: avgRating,
           total_reviews: ratings.length,
@@ -1420,6 +1420,7 @@ export class DashboardService {
       const data = dangerRequests.map((danger) => ({
         id: danger.id,
         name: danger.user?.name,
+        avatar: danger.user.avatar ? '/public/storage/avatar/' + danger.user.avatar : null,
         joint_at: danger.user?.created_at,
 
         applied_date: danger.created_at,
