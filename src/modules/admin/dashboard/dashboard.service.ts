@@ -752,11 +752,11 @@ export class DashboardService {
         revenue: booking.revenue === null ? null : Number(booking.revenue),
         residential_cleaning_package: booking.residential_cleaning_package
           ? {
-              ...booking.residential_cleaning_package,
-              price: booking.residential_cleaning_package.price === null
-                ? null
-                : Number(booking.residential_cleaning_package.price),
-            }
+            ...booking.residential_cleaning_package,
+            price: booking.residential_cleaning_package.price === null
+              ? null
+              : Number(booking.residential_cleaning_package.price),
+          }
           : null,
         payment: {
           status: booking.payment_status,
@@ -1181,7 +1181,7 @@ export class DashboardService {
           name: item.name,
           email: item.email,
           phone_number: item.phone_number,
-          avatar: item.avatar,
+          avatar: item.avatar ? '/public/storage/avatar/' + item.avatar : null,
           location: item.location || 'N/A',
           address: item.address,
           applied_date: verification?.created_at || null,
