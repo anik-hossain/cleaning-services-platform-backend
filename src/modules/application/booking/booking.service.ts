@@ -617,6 +617,12 @@ export class BookingService {
         maid: true,
         user: true,
         residential_cleaning_package: true,
+        booking_reviews: {
+          select: {
+            rating: true,
+            comment: true,
+          },
+        },
       },
     });
 
@@ -630,6 +636,7 @@ export class BookingService {
       booking.residential_cleaning_package?.title || 'Residential Cleaning';
 
     const slotTime = getSlotTimeRange(packageData?.title, booking.slot);
+    const review = booking.booking_reviews[0];
 
     return {
       success: true,
@@ -684,6 +691,13 @@ export class BookingService {
         },
         status: booking.status,
         cancle_reason: booking.cancle_reason ?? null,
+        is_reviewed: !!review,
+        review: review
+          ? {
+              rating: review.rating,
+              comment: review.comment,
+            }
+          : null,
         before_photos_url:
           (booking.before_photos as string[])?.map((fileName) =>
             TanvirStorage.url(`${appConfig().storageUrl.booking}/${fileName}`),
