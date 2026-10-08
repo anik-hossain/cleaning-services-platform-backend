@@ -40,6 +40,30 @@ export class ProfileService {
     };
   }
 
+  async getAdminDetails() {
+    const admin = await this.prisma.user.findFirst({
+      where: { type: 'ADMIN' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone_number: true,
+      },
+    });
+
+    if (!admin) {
+      return {
+        success: false,
+        message: 'Admin not found',
+      };
+    }
+
+    return {
+      success: true,
+      data: admin,
+    };
+  }
+
   // get profile details
   async getProfileDetails(userId: string) {
     const user = await this.prisma.user.findUnique({

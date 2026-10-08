@@ -39,6 +39,13 @@ export class ProfileController {
     return this.profileService.toggleAvailability(userId);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.MAID)
+  @Get('maid/admin')
+  async getAdminDetails() {
+    return this.profileService.getAdminDetails();
+  }
+
 
   // get profile details
   @UseGuards(JwtAuthGuard)
