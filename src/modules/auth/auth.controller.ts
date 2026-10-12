@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpException,
   HttpStatus,
@@ -31,12 +32,12 @@ import { Role } from 'src/common/guard/role/role.enum';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { FirebaseAuthDto } from './dto/firebase-auth.dto';
+import { FcmTokenDto } from './dto/fcm-token.dto';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
-
 
   // *delete account
   @UseGuards(JwtAuthGuard)
@@ -462,8 +463,7 @@ export class AuthController {
   /*----------------------------------------------
   // topic: resume upload start ------------------>
   -----------------------------------------------*/
-  
- 
+
   //-----------------------------------------------(end)----------------------------------------------------------------------
 
   @ApiOperation({ summary: 'Refresh token' })
@@ -494,10 +494,7 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Post('save-fcm-token')
-  async saveFcmToken(
-    @Req() req: Request,
-    @Body() data: { fcm_token: string; device_type?: string },
-  ) {
+  async saveFcmToken(@Req() req: Request, @Body() data: FcmTokenDto) {
     try {
       const user_id = req.user.userId;
 
@@ -523,6 +520,24 @@ export class AuthController {
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @Post('fcm-token')
+  async registerFcmToken(@Req() req: Request, @Body() data: FcmTokenDto) {
+    return this.authService.saveFcmToken({
+      user_id: req.user.userId,
+      fcm_token: data.fcm_token,
+      device_type: data.device_type,
+    });
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Delete('fcm-token')
+  async removeFcmToken(@Req() req: Request, @Body() data: FcmTokenDto) {
+    return this.authService.removeFcmToken(req.user.userId, data.fcm_token);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Post('logout')
   async logout(@Req() req: Request) {
     try {
@@ -543,7 +558,7 @@ export class AuthController {
   @Post('firebase/google')
   async firebaseGoogleAuth(@Body() firebaseAuthDto: FirebaseAuthDto) {
     try {
-      const { idToken, fcm_token } = firebaseAuthDto;
+      const { idToken, fcm_token, device_type } = firebaseAuthDto;
 
       if (!idToken) {
         throw new HttpException(
@@ -555,6 +570,7 @@ export class AuthController {
       const result = await this.authService.firebaseGoogleAuth(
         idToken,
         fcm_token,
+        device_type,
       );
 
       const isNew =
@@ -586,7 +602,7 @@ export class AuthController {
   @Post('firebase/apple')
   async firebaseAppleAuth(@Body() firebaseAuthDto: FirebaseAuthDto) {
     try {
-      const { idToken, fcm_token } = firebaseAuthDto;
+      const { idToken, fcm_token, device_type } = firebaseAuthDto;
 
       if (!idToken) {
         throw new HttpException(
@@ -598,6 +614,7 @@ export class AuthController {
       const result = await this.authService.firebaseAppleAuth(
         idToken,
         fcm_token,
+        device_type,
       );
 
       const isNew =

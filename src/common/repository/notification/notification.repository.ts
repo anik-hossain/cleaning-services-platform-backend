@@ -1,32 +1,16 @@
-import * as admin from 'firebase-admin';
 import { PrismaClient } from '@prisma/client';
+import { Queue } from 'bullmq';
 
 const prisma = new PrismaClient();
 
-const firebasePrivateKey = process.env.FIREBASE_PRIVATE_KEY;
-const firebaseProjectId = process.env.FIREBASE_PROJECT_ID;
-const firebaseClientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-
-if (!admin.apps.length) {
-  if (firebasePrivateKey && firebaseProjectId && firebaseClientEmail) {
-    try {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: firebaseProjectId,
-          clientEmail: firebaseClientEmail,
-          privateKey: firebasePrivateKey.replace(/\\n/g, '\n'),
-        }),
-      });
-      console.log('💯💯💯 Firebase initialized successfully. 💯💯💯');
-    } catch (error) {
-      console.error('❌ Firebase initialization failed:', error);
-    }
-  } else {
-    console.warn(
-      '⚠️ Firebase credentials missing in .env file. Push notifications will not work.',
-    );
-  }
-}
+export type PushNotificationJob = {
+  receiverId: string;
+  notificationId: string;
+  type: string;
+  text: string;
+  entityId: string;
+  token?: string;
+};
 
 export type NotificationType =
   | 'new user registration'
@@ -52,7 +36,12 @@ export type NotificationType =
   | 'update_booking';
 
 export class NotificationRepository {
-  
+  private static pushQueue: Queue<PushNotificationJob> | undefined;
+
+  static configurePushQueue(queue: Queue<PushNotificationJob>) {
+    this.pushQueue = queue;
+  }
+
   // create notification
   static async createNotification(payload: {
     sender_id?: string | null;
@@ -62,7 +51,7 @@ export class NotificationRepository {
     entity_id: string;
   }) {
     let { sender_id, receiver_id, text, type, entity_id } = payload;
-    const safeSenderId = sender_id === 'system' ? null : sender_id ?? null;
+    const safeSenderId = sender_id === 'system' ? null : (sender_id ?? null);
 
     try {
       let notificationEvent = await prisma.notificationEvent.findFirst({
@@ -84,7 +73,36 @@ export class NotificationRepository {
         },
       });
 
-      await this.sendPushNotification(receiver_id, type, text, entity_id);
+      if (!this.pushQueue) {
+        console.error(
+          'Push queue is not configured; notification is saved to the inbox only.',
+        );
+      } else {
+        try {
+          await this.pushQueue.add(
+            'deliver',
+            {
+              receiverId: receiver_id,
+              notificationId: newNotification.id,
+              type,
+              text,
+              entityId: entity_id,
+            },
+            {
+              attempts: 8,
+              backoff: { type: 'exponential', delay: 2000 },
+              jobId: `notification-${newNotification.id}`,
+              removeOnComplete: { age: 86400, count: 10000 },
+              removeOnFail: false,
+            },
+          );
+        } catch (error) {
+          console.error(
+            `Unable to queue push notification ${newNotification.id}; it remains available in the inbox.`,
+            error,
+          );
+        }
+      }
 
       return newNotification;
     } catch (error) {
@@ -93,54 +111,9 @@ export class NotificationRepository {
     }
   }
 
-  // send push notification using firebase
-  private static async sendPushNotification(
-    receiverId: string,
-    type: string,
-    text: string,
-    entityId: string,
-  ) {
-    if (!admin.apps.length) {
-      console.warn(
-        '⚠️ Firebase app is not initialized. Push notification skipped.',
-      );
-      return;
-    }
-
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: receiverId },
-        select: { fcm_token: true },
-      });
-
-      if (user?.fcm_token) {
-        const message: admin.messaging.Message = {
-          token: user.fcm_token,
-          notification: {
-            title: this.getNotificationTitle(type),
-            body: text,
-          },
-
-          data: {
-            entity_id: String(entityId),
-            type: String(type),
-            click_action: 'FLUTTER_NOTIFICATION_CLICK',
-          },
-        };
-
-        await admin.messaging().send(message);
-      } else {
-        console.warn(
-          `⚠️ FCM token missing for user ${receiverId}. Push notification skipped.`,
-        );
-      }
-    } catch (error) {
-      console.error('❌ Error sending FCM:', error);
-    }
-  }
-
   // get notification title based on type
   private static getNotificationTitle(type: string): string {
+    const normalizedType = type.toLowerCase().replace(/[\s-]+/g, '_');
     const titles: Record<string, string> = {
       new_user_registration: 'New User Registration',
       new_user_created: 'New User Created',
@@ -164,8 +137,10 @@ export class NotificationRepository {
       update_booking: 'Booking Updated',
     };
 
-    return titles[type] || 'New Notification';
+    return titles[normalizedType] || 'New Notification';
   }
 
-  
+  static getPushNotificationTitle(type: string): string {
+    return this.getNotificationTitle(type);
+  }
 }

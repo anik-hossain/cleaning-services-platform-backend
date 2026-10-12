@@ -125,14 +125,12 @@ export class AuthService {
         message: 'Active status toggled successfully',
         data: { active: updated.active },
       };
-
     } catch (error: any) {
       return {
         success: false,
         message: error.message,
       };
     }
-
 
   }
 
@@ -318,13 +316,16 @@ export class AuthService {
       const payload = { email: email, sub: userId, type: user?.type };
 
       if (fcm_token) {
-        await this.prisma.user.update({
-          where: { id: userId },
-          data: {
-            fcm_token: fcm_token,
-            device_type: device_type ?? null,
-          },
+        const tokenResult = await this.saveFcmToken({
+          user_id: userId,
+          fcm_token,
+          device_type,
         });
+        if (!tokenResult.success) {
+          console.error(
+            `Unable to save FCM token for user ${userId}: ${tokenResult.message}`,
+          );
+        }
       }
 
       const accessToken = this.jwtService.sign(payload, { expiresIn: '1h' });
@@ -377,17 +378,60 @@ export class AuthService {
         };
       }
 
-      await this.prisma.user.update({
-        where: { id: user_id },
-        data: {
-          fcm_token: fcm_token,
-          device_type: device_type ?? null,
-        },
-      });
+      await this.prisma.$transaction([
+        this.prisma.user.updateMany({
+          where: { fcm_token, NOT: { id: user_id } },
+          data: { fcm_token: null, device_type: null },
+        }),
+        this.prisma.pushToken.upsert({
+          where: { token: fcm_token },
+          create: {
+            user_id,
+            token: fcm_token,
+            device_type: device_type ?? null,
+          },
+          update: {
+            user_id,
+            device_type: device_type ?? null,
+          },
+        }),
+        this.prisma.user.update({
+          where: { id: user_id },
+          data: {
+            fcm_token,
+            device_type: device_type ?? null,
+          },
+        }),
+      ]);
 
       return {
         success: true,
         message: 'FCM token saved successfully',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  async removeFcmToken(user_id: string, fcm_token: string) {
+    try {
+      const [deleted] = await this.prisma.$transaction([
+        this.prisma.pushToken.deleteMany({
+          where: { user_id, token: fcm_token },
+        }),
+        this.prisma.user.updateMany({
+          where: { id: user_id, fcm_token },
+          data: { fcm_token: null, device_type: null },
+        }),
+      ]);
+
+      return {
+        success: true,
+        message: 'FCM token removed successfully',
+        removed: deleted.count > 0,
       };
     } catch (error: any) {
       return {
@@ -1299,7 +1343,11 @@ export class AuthService {
   // --------- end 2FA ---------
 
   // Firebase Google Authentication
-  async firebaseGoogleAuth(idToken: string, fcm_token?: string) {
+  async firebaseGoogleAuth(
+    idToken: string,
+    fcm_token?: string,
+    device_type?: string,
+  ) {
     try {
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       const { uid, email, name, picture } = decodedToken;
@@ -1353,10 +1401,16 @@ export class AuthService {
       }
 
       if (fcm_token) {
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: { fcm_token: fcm_token },
+        const tokenResult = await this.saveFcmToken({
+          user_id: user.id,
+          fcm_token,
+          device_type,
         });
+        if (!tokenResult.success) {
+          console.error(
+            `Unable to save FCM token for user ${user.id}: ${tokenResult.message}`,
+          );
+        }
       }
 
       const payload = { email: user.email, sub: user.id };
@@ -1398,7 +1452,11 @@ export class AuthService {
   }
 
   // Firebase Apple Authentication
-  async firebaseAppleAuth(idToken: string, fcm_token?: string) {
+  async firebaseAppleAuth(
+    idToken: string,
+    fcm_token?: string,
+    device_type?: string,
+  ) {
     try {
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       const { uid, email, name, picture } = decodedToken;
@@ -1450,10 +1508,16 @@ export class AuthService {
       }
 
       if (fcm_token) {
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: { fcm_token },
+        const tokenResult = await this.saveFcmToken({
+          user_id: user.id,
+          fcm_token,
+          device_type,
         });
+        if (!tokenResult.success) {
+          console.error(
+            `Unable to save FCM token for user ${user.id}: ${tokenResult.message}`,
+          );
+        }
       }
 
       const payload = { email: user.email, sub: user.id };

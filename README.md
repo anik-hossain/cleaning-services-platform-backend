@@ -602,6 +602,43 @@ stripe trigger payment_intent.succeeded
 
 Copy .env.example to .env and config according to your needs.
 
+### Firebase push notifications
+
+The API uses Firebase Cloud Messaging (FCM) for Android/iOS and browser push. It stores a separate registration token for each device/browser, keeps notifications in the existing in-app inbox, and queues push delivery in BullMQ with exponential retries. Redis must be available for push retries.
+
+1. In Firebase Console, enable Cloud Messaging and create a service account for the Firebase Admin SDK. Configure the credentials only in the backend environment:
+
+   ```env
+   FIREBASE_PROJECT_ID=your-firebase-project-id
+   FIREBASE_CLIENT_EMAIL=firebase-adminsdk-...@your-firebase-project-id.iam.gserviceaccount.com
+   FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+   CLIENT_APP_URL=https://your-next-app.example.com
+   ```
+
+   Never put the service-account private key in a mobile app, Next.js client bundle, or source control. On Google Cloud environments, prefer Application Default Credentials instead of a downloaded key. Set all three Firebase variables or leave all three unset.
+
+2. Apply the migration with the deployment's normal migration process (`npx prisma migrate deploy`) and regenerate Prisma Client if your deploy process does not already do so.
+
+3. In the authenticated mobile app, request notification permission, retrieve the FCM registration token using the Firebase client SDK, then register it with the API:
+
+   ```http
+   POST /api/auth/fcm-token
+   Authorization: Bearer <access_token>
+   Content-Type: application/json
+
+   {"fcm_token":"<current-device-fcm-token>","device_type":"android"}
+   ```
+
+   Use `ios` for iOS. Re-register whenever Firebase reports a refreshed token. Call `DELETE /api/auth/fcm-token` with the same JSON body when the user disables push or signs out of that device. The existing login `fcm_token` field and `POST /api/auth/save-fcm-token` endpoint remain supported.
+
+4. For a Next.js web client, configure the Firebase Web SDK with the public Firebase app config and Web Push certificate (VAPID) key. Request permission in response to a user action, call `getToken(messaging, { vapidKey })`, and register the returned token at the same authenticated endpoint with `device_type: "web"`. Serve a Firebase messaging service worker from `/firebase-messaging-sw.js` (or configure the worker URL passed to `getToken`) and handle foreground messages with `onMessage`. Set the web app URL in `CLIENT_APP_URL`; notification clicks open its `/notifications` route. Browser push requires HTTPS (except localhost), notification permission, and a supported browser.
+
+For mobile, handle foreground messages in the app and route notification taps using the `notification_id`, `entity_id`, and `type` data fields. On iOS, configure APNs credentials in Firebase; Android and iOS app permission/channel behavior remains the responsibility of the app.
+
+See the [mobile push notification integration guide](./docs/mobile-push-notifications.md) for exact API requests, token lifecycle, payload shape, app-side handling, and a test checklist.
+
+Push delivery is best-effort end-to-end: the API retries transient Firebase failures up to eight times and retains exhausted jobs for inspection, but cannot guarantee delivery when a device is offline, permissions are denied, tokens are revoked, or Firebase/APNs is unavailable. The in-app notification record remains available independently of push delivery.
+
 **Migrate database:**
 ```bash
 npx prisma migrate dev
@@ -638,4 +675,3 @@ If you run the app directly on Windows and hit a bind permission error, set `HOS
 ## Api documentation
 
 Swagger: http://{domain_name}/api/docs
-
