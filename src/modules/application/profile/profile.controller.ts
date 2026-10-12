@@ -40,7 +40,7 @@ export class ProfileController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.MAID)
+  @Roles(Role.MAID, Role.HOMEOWNER)
   @Get('maid/admin')
   async getAdminDetails() {
     return this.profileService.getAdminDetails();
