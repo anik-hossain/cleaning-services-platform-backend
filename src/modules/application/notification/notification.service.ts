@@ -11,10 +11,10 @@ export class NotificationService {
   // get all notification
   async findAll(
     userId: string, 
-    paginationdto: PaginationDto
+    paginationDto: PaginationDto
   ) {
 
-    const { page, perPage } = paginationdto;
+    const { page, perPage } = paginationDto;
     const skip = (page - 1) * perPage;
     const take = perPage;
 

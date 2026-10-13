@@ -103,11 +103,14 @@ export class NotificationPushProcessor extends WorkerHost {
       },
       android: {
         priority: 'high' as const,
-        notification: { sound: 'default' },
+        notification: {
+          channelId: 'default_channel',
+          sound: 'notification_1',
+        },
       },
       apns: {
         headers: { 'apns-priority': '10' },
-        payload: { aps: { sound: 'default' } },
+        payload: { aps: { sound: 'notification_1.caf', badge: 1 } },
       },
       webpush: {
         fcmOptions: {
