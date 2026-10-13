@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { TanvirStorage } from '../../../common/lib/Disk/TanvirStorage';
-import appConfig from '../../../config/app.config';
 import { UserRepository } from '../../../common/repository/user/user.repository';
+import { NotificationRepository } from '../../../common/repository/notification/notification.repository';
 import { UserType } from '@prisma/client';
 
 @Injectable()
@@ -14,29 +13,21 @@ export class NotificationService {
 
   async findAll(user_id: string) {
     try {
-      const where_condition = {};
+      const where_condition: any = {};
       const userDetails = await this.userRepository.getUserDetails(user_id);
 
-      if (userDetails.type == UserType.ADMIN) {
+      if (userDetails && userDetails.type === UserType.ADMIN) {
         where_condition['OR'] = [
           { receiver_id: { equals: user_id } },
           { receiver_id: { equals: null } },
         ];
+      } else {
+        where_condition['receiver_id'] = user_id;
       }
-      // else if (userDetails.type == Role.VENDOR) {
-      //   where_condition['receiver_id'] = user_id;
-      // }
 
       const notifications = await this.prisma.notification.findMany({
-        where: {
-          ...where_condition,
-        },
-        select: {
-          id: true,
-          sender_id: true,
-          receiver_id: true,
-          entity_id: true,
-          created_at: true,
+        where: where_condition,
+        include: {
           sender: {
             select: {
               id: true,
@@ -61,30 +52,28 @@ export class NotificationService {
             },
           },
         },
+        orderBy: {
+          created_at: 'desc',
+        },
       });
 
-      // add url to avatar
-      if (notifications.length > 0) {
-        for (const notification of notifications) {
-          if (notification.sender && notification.sender.avatar) {
-            notification.sender['avatar_url'] = TanvirStorage.url(
-              appConfig().storageUrl.avatar + '/' + notification.sender.avatar,
-            );
-          }
+      const formattedNotifications = notifications.map((n) =>
+        NotificationRepository.formatNotification(n),
+      );
 
-          if (notification.receiver && notification.receiver.avatar) {
-            notification.receiver['avatar_url'] = TanvirStorage.url(
-              appConfig().storageUrl.avatar + '/' + notification.receiver.avatar,
-            );
-          }
-        }
-      }
+      const unreadCount = await this.prisma.notification.count({
+        where: {
+          ...where_condition,
+          read_at: null,
+        },
+      });
 
       return {
         success: true,
-        data: notifications,
+        unread_count: unreadCount,
+        data: formattedNotifications,
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         message: error.message,
@@ -98,7 +87,6 @@ export class NotificationService {
       const notification = await this.prisma.notification.findUnique({
         where: {
           id: id,
-          // receiver_id: user_id,
         },
       });
 
@@ -119,7 +107,7 @@ export class NotificationService {
         success: true,
         message: 'Notification deleted successfully',
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         message: error.message,
@@ -129,14 +117,13 @@ export class NotificationService {
 
   async removeAll(user_id: string) {
     try {
-      // check if notification exists
       const notifications = await this.prisma.notification.findMany({
         where: {
           OR: [{ receiver_id: user_id }, { receiver_id: null }],
         },
       });
 
-      if (notifications.length == 0) {
+      if (notifications.length === 0) {
         return {
           success: false,
           message: 'Notification not found',
@@ -153,7 +140,7 @@ export class NotificationService {
         success: true,
         message: 'All notifications deleted successfully',
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         message: error.message,

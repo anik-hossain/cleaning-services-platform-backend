@@ -1131,6 +1131,16 @@ export class BookingService {
       entity_id: booking.id,
     });
 
+    if (status === BookingStatus.CONFIRMED) {
+      await sendUserNotification({
+        sender_id: maidId,
+        receiver_id: booking.user_id,
+        text: `Your booking ${booking.id} was accepted by the cleaner for ${formatBookingDate(booking.booking_date)}.`,
+        type: 'approve_booking',
+        entity_id: booking.id,
+      });
+    }
+
     return {
       success: true,
       message: `Booking ${status.toLowerCase()} successfully`,

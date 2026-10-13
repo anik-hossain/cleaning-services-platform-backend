@@ -91,15 +91,25 @@ export class NotificationPushProcessor extends WorkerHost {
       );
     }
 
+    const routeInfo = NotificationRepository.getRoutingInfo(
+      job.data.type,
+      String(job.data.entityId),
+    );
+
     const message = {
       notification: {
-        title: NotificationRepository.getPushNotificationTitle(job.data.type),
+        title:
+          routeInfo.title ||
+          NotificationRepository.getPushNotificationTitle(job.data.type),
         body: job.data.text,
       },
       data: {
         entity_id: String(job.data.entityId),
         notification_id: job.data.notificationId,
         type: job.data.type,
+        action_type: routeInfo.action_type,
+        entity_type: routeInfo.entity_type,
+        route: routeInfo.route,
       },
       android: {
         priority: 'high' as const,
@@ -114,7 +124,7 @@ export class NotificationPushProcessor extends WorkerHost {
       },
       webpush: {
         fcmOptions: {
-          link: `${(process.env.CLIENT_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/notifications`,
+          link: `${(process.env.CLIENT_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}${routeInfo.route.startsWith('/') ? routeInfo.route : '/' + routeInfo.route}`,
         },
       },
     };
