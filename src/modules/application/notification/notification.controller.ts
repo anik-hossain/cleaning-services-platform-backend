@@ -11,8 +11,6 @@ import {
   Query,
 } from '@nestjs/common';
 import { NotificationService } from './notification.service';
-import { CreateNotificationDto } from './dto/create-notification.dto';
-import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { PaginationDto } from 'src/common/pagination';
 
@@ -25,18 +23,9 @@ export class NotificationController {
   @Get()
   async findAll(
     @Req() req:any,
-    @Query() paginationdto: PaginationDto,
+    @Query() paginationDto: PaginationDto,
     ) {
     const userId = req.user.userId;
-    return this.notificationService.findAll(userId, paginationdto);
+    return this.notificationService.findAll(userId, paginationDto);
   }
-
-
-  //
-  
-
-
-
-
-
 }

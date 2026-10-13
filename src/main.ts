@@ -45,7 +45,7 @@ async function bootstrap() {
     index: false,
     prefix: "/public",
   });
- // gobal
+ // global
  app.useGlobalPipes(
   new ValidationPipe({
     transform: true,
