@@ -102,6 +102,36 @@ export class NotificationService {
     };
   }
 
+  // Get notification by id
+  async findById(id: string, userId: string, userRole?: string) {
+    const receiverCondition = this.getReceiverCondition(userId, userRole);
+
+    const notification = await this.prisma.notification.findFirst({
+      where: {
+        id,
+        ...receiverCondition,
+      },
+      include: {
+        sender: {
+          select: { id: true, name: true, email: true, avatar: true },
+        },
+        notification_event: {
+          select: { id: true, type: true, text: true },
+        },
+      },
+    });
+
+    if (!notification) {
+      throw new NotFoundException('Notification not found');
+    }
+
+    return {
+      success: true,
+      message: 'Notification retrieved successfully',
+      data: NotificationRepository.formatNotification(notification),
+    };
+  }
+
   // Get unread count
   async getUnreadCount(userId: string, userRole?: string) {
     const receiverCondition = this.getReceiverCondition(userId, userRole);

@@ -50,6 +50,15 @@ export class NotificationController {
     return this.notificationService.findAll(userId, userRole, query);
   }
 
+  // GEt notification by id
+  @ApiOperation({ summary: 'Get a specific notification by ID' })
+  @Get(':id')
+  async getNotificationById(@Req() req: any, @Param('id') id: string) {
+    const userId = req.user.userId;
+    const userRole = req.user.type;
+    return await this.notificationService.findById(id, userId, userRole);
+  }
+
   @ApiOperation({ summary: 'Mark all notifications as read for authenticated user' })
   @Patch('read-all')
   async markAllAsRead(@Req() req: any) {
