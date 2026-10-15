@@ -567,12 +567,6 @@ The platform brings together verified users, reviews and ratings, maid availabil
 
 Follow these steps to run the project locally:
 
-**Clone the repository**
-```
-git clone https://github.com/Tanvir286/cleaning-services-platform-frontend.git       
-cd cleaning-services-platform-frontend
-```
-
 ## Installation
 
 Install all dependencies
